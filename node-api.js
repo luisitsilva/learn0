@@ -6,6 +6,7 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 const HOST = '0.0.0.0';
 
+
 // Middleware to parse JSON bodies
 app.use(express.json());
 
@@ -123,6 +124,16 @@ app.get('/api/echo', (req, res) => {
     });
 });
 
+// Feature new: GET A HELLO WORLD
+app.get('/api/hi', (req, res) => {
+    res.json({
+        message: 'The hello function is now working',
+        note: 'This is just another GET request',
+        timestamp: new Date().toISOString()
+    });
+});
+
+
 // ==================== ADDITIONAL ENDPOINTS FOR FRONTEND ====================
 
 // Endpoint for latency testing (HEAD request support)
@@ -195,6 +206,7 @@ app.listen(PORT,HOST, () => {
     console.log(`- POST /api/echo    - Echo endpoint`);
     console.log(`- GET  /api/ip      - Get client IP address`);
     console.log(`- HEAD /ping        - Latency testing`);
+    console.log(`- GET  /api/hi      - Says hello from a function`);
 });
 
 // Helper to get local IP of the server running this API

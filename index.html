@@ -250,6 +250,14 @@
                 <button onclick="testAPI('echo')" style="margin: 0; padding: 5px 10px; font-size: 12px;">Test</button>
                 <span class="info-value" id="apiEcho">Not tested</span>
             </div>
+            <!-- NEW: /api/hi endpoint with dedicated button -->
+            <div class="info-row" style="border-bottom: none; margin-top: 8px;">
+                <span class="info-label">✨ GET /api/hi (Who is this?):</span>
+                <button id="whoIsThisBtn" onclick="callWhoIsThis()" style="margin: 0; padding: 5px 15px; font-size: 12px; background: #8b5cf6;">❓ Who is this?</button>
+                <span class="info-value" id="apiHiStatus">Ready</span>
+            </div>
+            <!-- Dynamic greeting display area -->
+            <div id="greetingDisplayArea" style="margin-top: 12px;"></div>
         </div>
 
         <!-- Log Section -->
@@ -445,6 +453,112 @@
                 addLog(`API /api/${endpoint} test failed: ${e.message}`, 'error');
             }
         }
+
+                // ========== NEW FUNCTION: Handle "Who is this?" button for /api/hi endpoint ==========
+        async function callWhoIsThis() {
+            const btn = document.getElementById('whoIsThisBtn');
+            const statusSpan = document.getElementById('apiHiStatus');
+            const displayArea = document.getElementById('greetingDisplayArea');
+            
+            // Disable button briefly to avoid multiple rapid clicks
+            btn.disabled = true;
+            const originalBtnText = btn.innerText;
+            btn.innerText = '⏳ Loading...';
+            statusSpan.innerHTML = '<span class="loading">⏳ Fetching...</span>';
+            
+            addLog('Calling new endpoint: GET /api/hi (Who is this?)', 'info');
+            
+            try {
+                const response = await fetch('/api/hi', {
+                    method: 'GET',
+                    headers: { 'Cache-Control': 'no-cache' }
+                });
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status} - ${response.statusText}`);
+                }
+                
+                const data = await response.json();
+                // Expected data format from server: { message, note, timestamp }
+                // Example from the Node.js API: 
+                // { message: 'The hello function is now working', note: 'This is just another GET request', timestamp: ... }
+                
+                // Extract the main message (primary greeting)
+                let mainMessage = data.message || 'Hello from server!';
+                let additionalNote = data.note || '';
+                let serverTimestamp = data.timestamp || new Date().toISOString();
+                
+                // Format the timestamp to local readable string
+                let formattedTime = 'just now';
+                try {
+                    const dateObj = new Date(serverTimestamp);
+                    formattedTime = dateObj.toLocaleTimeString() + ' on ' + dateObj.toLocaleDateString();
+                } catch(e) {
+                    formattedTime = serverTimestamp;
+                }
+                
+                // Update the status indicator (inline next to button)
+                statusSpan.innerHTML = `<span class="success">✓ Message received</span>`;
+                
+                // Create or update the greeting display card with the response message
+                // This provides a visual, prominent display of the /api/hi message
+                displayArea.innerHTML = `
+                    <div class="greeting-message">
+                        <strong>💬 Server says:</strong><br>
+                        “${escapeHtml(mainMessage)}”<br>
+                        ${additionalNote ? `<span style="font-size:13px; color:#4a5568;">📌 ${escapeHtml(additionalNote)}</span><br>` : ''}
+                        <div class="greeting-time">🕒 Server timestamp: ${formattedTime}</div>
+                    </div>
+                `;
+                
+                // Also log to activity log with details
+                addLog(`✨ /api/hi response: "${mainMessage}"${additionalNote ? ` (${additionalNote})` : ''}`, 'success');
+                
+                // Optionally flash a temporary success effect on the button area
+                btn.style.background = '#10b981';
+                setTimeout(() => { btn.style.background = '#8b5cf6'; }, 500);
+                
+            } catch(error) {
+                console.error('Error calling /api/hi:', error);
+                statusSpan.innerHTML = '<span class="error">✗ Failed</span>';
+                addLog(`❌ Failed to fetch /api/hi: ${error.message}`, 'error');
+                
+                // Show error message in the greeting area
+                displayArea.innerHTML = `
+                    <div class="greeting-message" style="border-left-color: #ef4444; background: #fef2f2;">
+                        <strong>⚠️ Error</strong><br>
+                        Could not retrieve the greeting message. Make sure the server is running and the /api/hi endpoint is available.<br>
+                        <span style="font-size:12px;">Details: ${escapeHtml(error.message)}</span>
+                    </div>
+                `;
+            } finally {
+                // Re-enable button after request completes (delay a bit for UX)
+                setTimeout(() => {
+                    btn.disabled = false;
+                    btn.innerText = originalBtnText;
+                }, 800);
+                // Reset status indicator after few seconds if it's success? Not necessary, but fine
+                setTimeout(() => {
+                    if (statusSpan.innerHTML.includes('Message received')) {
+                        // Keep as is, but no auto-reset to keep user feedback
+                    }
+                }, 3000);
+            }
+        }
+        
+        // Helper function to escape HTML to prevent injection
+        function escapeHtml(str) {
+            if (!str) return '';
+            return str.replace(/[&<>]/g, function(m) {
+                if (m === '&') return '&amp;';
+                if (m === '<') return '&lt;';
+                if (m === '>') return '&gt;';
+                return m;
+            }).replace(/[\uD800-\uDBFF][\uDC00-\uDFFF]/g, function(c) {
+                return c;
+            });
+        }
+
 
         // Get local IP (using WebRTC as fallback, but server API is primary)
         function getLocalIP() {
