@@ -1,0 +1,24 @@
+{
+  "dependencies": {
+    "express": "5.2.1"
+  },
+  "name": "learn0",
+  "version": "1.0.0",
+  "description": "Just for testing",
+  "main": "node-api.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/luisitsilva/learn0.git"
+  },
+  "keywords": [],
+  "author": "luisitsilva <luisitsilva@protonmail.com>",
+  "license": "MIT",
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/luisitsilva/learn0/issues"
+  },
+  "homepage": "https://github.com/luisitsilva/learn0#readme"
+}

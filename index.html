@@ -88,6 +88,9 @@
         .info-value {
             color: #333;
             font-family: monospace;
+            word-break: break-word;
+            text-align: right;
+            max-width: 60%;
         }
 
         .success {
@@ -141,6 +144,10 @@
             }
             .header {
                 padding: 20px;
+            }
+            .info-value {
+                max-width: 50%;
+                font-size: 12px;
             }
         }
     </style>
@@ -255,7 +262,7 @@
         </div>
 
         <div class="footer">
-            <p>Test Website | Running on Nginx/Docker | © 2024</p>
+            <p>Test Website | Running on Node.js API | © 2024</p>
             <p id="visitCount">Visitor #1</p>
         </div>
     </div>
@@ -383,10 +390,13 @@
             }
         }
 
-        // API Testing
+        // API Testing - UPDATED to properly display responses
         async function testAPI(endpoint) {
             addLog(`Testing API endpoint: /api/${endpoint}`, 'info');
             const element = document.getElementById(`api${endpoint.charAt(0).toUpperCase() + endpoint.slice(1)}`);
+            
+            // Show loading state
+            element.innerHTML = '<span class="loading">⏳ Testing...</span>';
             
             try {
                 let response;
@@ -402,40 +412,79 @@
                 
                 if (response.ok) {
                     const data = await response.json();
-                    element.innerHTML = `<span class="success">✓ ${JSON.stringify(data).substring(0, 50)}</span>`;
-                    addLog(`API /api/${endpoint} test successful`, 'success');
+                    
+                    // Format the response based on endpoint
+                    let displayText = '';
+                    if (endpoint === 'health') {
+                        // Display "computer healthy" in green as requested
+                        displayText = `✓ ${data.message || 'computer healthy'}`;
+                        element.innerHTML = `<span class="success">${displayText}</span>`;
+                        addLog(`API /api/${endpoint} - Computer is healthy`, 'success');
+                    } else if (endpoint === 'info') {
+                        // Display browser information nicely
+                        const browserInfo = `${data.browser} ${data.version} on ${data.operatingSystem}`;
+                        displayText = `✓ Browser: ${browserInfo}`;
+                        element.innerHTML = `<span class="success">${displayText}</span>`;
+                        addLog(`API /api/${endpoint} - Detected: ${browserInfo}`, 'success');
+                    } else if (endpoint === 'echo') {
+                        // Display the echo message
+                        displayText = `✓ ${data.message}`;
+                        element.innerHTML = `<span class="success">${displayText}</span>`;
+                        addLog(`API /api/${endpoint} - ${data.message}`, 'success');
+                    } else {
+                        // Generic display for any other endpoints
+                        displayText = `✓ ${JSON.stringify(data).substring(0, 80)}`;
+                        element.innerHTML = `<span class="success">${displayText}</span>`;
+                        addLog(`API /api/${endpoint} test successful`, 'success');
+                    }
                 } else {
                     throw new Error(`HTTP ${response.status}`);
                 }
             } catch(e) {
-                element.innerHTML = '<span class="error">✗ Not implemented</span>';
+                element.innerHTML = '<span class="error">✗ Connection failed - API not available</span>';
                 addLog(`API /api/${endpoint} test failed: ${e.message}`, 'error');
             }
         }
 
-        // Get local IP (using WebRTC)
+        // Get local IP (using WebRTC as fallback, but server API is primary)
         function getLocalIP() {
-            window.RTCPeerConnection = window.RTCPeerConnection || window.mozRTCPeerConnection || window.webkitRTCPeerConnection;
-            if (window.RTCPeerConnection) {
-                const pc = new RTCPeerConnection({ iceServers: [] });
-                pc.createDataChannel('');
-                pc.createOffer().then(offer => pc.setLocalDescription(offer));
-                pc.onicecandidate = (ice) => {
-                    if (!ice || !ice.candidate || !ice.candidate.candidate) return;
-                    const ip = ice.candidate.candidate.match(/([0-9]{1,3}\.){3}[0-9]{1,3}/);
-                    if (ip) {
-                        document.getElementById('localIP').innerText = ip[0];
-                        pc.close();
+            // First try to get IP from server API
+            fetch('/api/ip')
+                .then(res => res.json())
+                .then(data => {
+                    if (data.localIP && data.localIP !== '127.0.0.1') {
+                        document.getElementById('localIP').innerHTML = `<span class="success">${data.localIP}</span>`;
+                        addLog(`Local IP detected via server: ${data.localIP}`, 'success');
+                        return;
                     }
-                };
-                setTimeout(() => {
-                    if (document.getElementById('localIP').innerText === 'Detecting...') {
-                        document.getElementById('localIP').innerText = 'Not available';
+                    // If we got localhost, try WebRTC as fallback
+                    throw new Error('Got localhost, trying WebRTC');
+                })
+                .catch(err => {
+                    // Fallback to WebRTC method
+                    window.RTCPeerConnection = window.RTCPeerConnection || window.mozRTCPeerConnection || window.webkitRTCPeerConnection;
+                    if (window.RTCPeerConnection) {
+                        const pc = new RTCPeerConnection({ iceServers: [] });
+                        pc.createDataChannel('');
+                        pc.createOffer().then(offer => pc.setLocalDescription(offer));
+                        pc.onicecandidate = (ice) => {
+                            if (!ice || !ice.candidate || !ice.candidate.candidate) return;
+                            const ip = ice.candidate.candidate.match(/([0-9]{1,3}\.){3}[0-9]{1,3}/);
+                            if (ip) {
+                                document.getElementById('localIP').innerHTML = `<span class="success">${ip[0]}</span>`;
+                                pc.close();
+                            }
+                        };
+                        setTimeout(() => {
+                            if (document.getElementById('localIP').innerText === 'Detecting...') {
+                                document.getElementById('localIP').innerHTML = '<span class="warning">Not available</span>';
+                                addLog('Could not detect local IP', 'warning');
+                            }
+                        }, 2000);
+                    } else {
+                        document.getElementById('localIP').innerHTML = '<span class="error">Not supported</span>';
                     }
-                }, 2000);
-            } else {
-                document.getElementById('localIP').innerText = 'Not supported';
-            }
+                });
         }
 
         // Event listeners for online/offline status
@@ -460,9 +509,12 @@
             addLog('Page initialized successfully', 'success');
             document.getElementById('loadTime').innerText = new Date().toLocaleTimeString();
             
-            // Check for server-side API availability
+            // Auto-test all APIs on page load to show they're working
             setTimeout(() => {
+                addLog('Auto-testing API endpoints...', 'info');
                 testAPI('health');
+                setTimeout(() => testAPI('info'), 500);
+                setTimeout(() => testAPI('echo'), 1000);
             }, 1000);
         }
 
